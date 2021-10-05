@@ -18,12 +18,6 @@ const char* clientID = "";
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883,wifiClient); 
 
-long lastReconnectAttempt = 0;
-unsigned long lastMsg = 0;
-#define MSG_BUFFER_SIZE  (50)
-char msg[MSG_BUFFER_SIZE];
-int value = 0;
-
 
 void setup() {
   
@@ -33,7 +27,7 @@ void setup() {
     //create a task to handle Mqtt (core 0)
   xTaskCreatePinnedToCore(
     tstate,        /* Task function. */
-    "State",       /* name of task. */
+    "state",       /* name of task. */
     10000,        /* Stack size of task */
     NULL,         /* parameter of the task */
     1,            /* priority of the task */
@@ -69,12 +63,11 @@ void tWifi(){
   Serial.println(ssid);
 
   WiFi.begin(ssid, wifi_password);
+  client.setServer(mqtt_server, 1883);
 
-  
  while (WiFi.status() != WL_CONNECTED) {
     digitalWrite(LED_BUILTIN, HIGH);   
-    //led turn off when can't connect Wifi access point
-    Serial.println("turn off led when cannot connect Wifi");
+    Serial.println("turn off led when unable to connect to Wifi.");
     delay(500);
     Serial.print(".");
  }
@@ -83,16 +76,20 @@ void tWifi(){
   Serial.println("WiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-  
    //connect MQTT Broker
    if (client.connect(clientID, mqtt_username, mqtt_password)) {
-    Serial.println("set up on loop core1 : Connected to MQTT Broker!");
+    Serial.println("set on loop core1 : Connected MQTT Broker!");
   }
   else {
-    Serial.println("set up on loop core1 : Connection to MQTT Broker failed...");
+    Serial.println("set on loop core1 : Connection MQTT Broker fail.");
   }
 }
   
+#define MSG_BUFFER_SIZE  (50)
+long trylastReconnect = 0;
+unsigned long lastMsg = 0;
+char msg[MSG_BUFFER_SIZE];
+int value = 0;
 
 boolean reconnect() {
   Serial.println("reconnect active");
@@ -116,7 +113,7 @@ void tstate(void *params){
   // local Variables
   bool lastState = false;
   
-  Serial.print("tButtonFunc running on core ");
+  Serial.print("tstate running on core ");
   Serial.println(xPortGetCoreID());
 
   // loop
@@ -128,10 +125,10 @@ void tstate(void *params){
     delay(1000);
    }  
     if(WiFi.status() == WL_CONNECTED){
-    Serial.println("loop core0 : Connect WIFI, Turn on led 500 ms ");  
+    Serial.println("loop core0 : Connect WIFI, turn on led 500ms ");  
     digitalWrite(LED_BUILTIN, LOW);
     delay(500);
-    Serial.println("loop core0 : Connect WIFI, Turn off led 500 ms ");  
+    Serial.println("loop core0 : Connect WIFI, turn off led 500ms ");  
     digitalWrite(LED_BUILTIN, HIGH);
     delay(500); 
     }
@@ -144,10 +141,7 @@ void tstate(void *params){
 }
   
 
-// tLedFunc: blinks every 1000ms
 void tLedFunc(void *params) {
-  // local variable
-  
   // setup  
   Serial.print("tLedFunc running on core ");
   Serial.println(xPortGetCoreID());
@@ -157,23 +151,22 @@ void tLedFunc(void *params) {
   // connect WiFi
   tWifi();
   
-  // Connect MQTT Broker
-  //loop
+  // Connect MQTT 
   while (true) {
     if (!client.connected()) {
       
     long now = millis();
     
-    if (now - lastReconnectAttempt > 5000) {
-      lastReconnectAttempt = now;
+    if (now - trylastReconnect > 5000) {
+      trylastReconnect = now;
       Serial.println("loop core 1 : Counting.. ,not connect");
       Serial.println("Counter is reset : 0");
       Serial.print("Counter Change to : ");
-      Serial.println(lastReconnectAttempt);
+      Serial.println(trylastReconnect);
       // try to reconnect
       if (reconnect()) {
-        lastReconnectAttempt = 0;
-        Serial.println("loop core 1 : Reconnecting..., turn off LED: ");    // -- led turn off when  can't connect Wifi Access point
+        trylastReconnect = 0;
+        Serial.println("loop core 1 : Reconnecting..., turn off LED: ");   
       }
     }
   }
@@ -182,8 +175,7 @@ void tLedFunc(void *params) {
     Serial.println("loop core1 : Connected...");
     Serial.print("IP address:  ");
     Serial.println(WiFi.localIP()); 
-
-  //  Serial.println("loop core1 : Connect MQTT, Turn on led ");          
+        
      client.disconnect();
      delay(50);
   }
